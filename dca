@@ -1,0 +1,115 @@
+#!/bin/bash
+n=$2
+if [[ $2 = base ]];then
+        up () {
+        docker-compose -f /home/dc_mysql/docker-compose.yml up -d
+        docker-compose -f /home/dc_nginx/docker-compose.yml up -d
+        docker-compose -f /home/dc_fastdfs/docker-compose.yml up -d
+        docker-compose -f /home/dc_redis/docker-compose.yml up -d
+        docker-compose -f /home/dc_influxdb/docker-compose.yml up -d
+        docker-compose -f /home/dc_neo4j/docker-compose.yml up -d
+        docker-compose -f /home/dc_xxl-job/docker-compose.yml up -d
+        docker-compose -f /home/dc_rabbitmq/docker-compose.yml up -d
+        }
+
+        down () {
+        docker-compose -f /home/dc_mysql/docker-compose.yml down
+        docker-compose -f /home/dc_nginx/docker-compose.yml down
+        docker-compose -f /home/dc_fastdfs/docker-compose.yml down
+        docker-compose -f /home/dc_redis/docker-compose.yml down
+        docker-compose -f /home/dc_influxdb/docker-compose.yml down
+        docker-compose -f /home/dc_neo4j/docker-compose.yml down
+        docker-compose -f /home/dc_xxl-job/docker-compose.yml down
+        docker-compose -f /home/dc_rabbitmq/docker-compose.yml down
+        }
+
+        startf () {
+        docker-compose -f /home/dc_mysql/docker-compose.yml start
+        docker-compose -f /home/dc_nginx/docker-compose.yml start
+        docker-compose -f /home/dc_fastdfs/docker-compose.yml start
+        docker-compose -f /home/dc_redis/docker-compose.yml start
+        docker-compose -f /home/dc_influxdb/docker-compose.yml start
+        docker-compose -f /home/dc_neo4j/docker-compose.yml start
+        docker-compose -f /home/dc_xxl-job/docker-compose.yml start
+        docker-compose -f /home/dc_rabbitmq/docker-compose.yml start
+        }
+
+        stopf () {
+        docker-compose -f /home/dc_mysql/docker-compose.yml stop
+        docker-compose -f /home/dc_nginx/docker-compose.yml stop
+        docker-compose -f /home/dc_fastdfs/docker-compose.yml stop
+        docker-compose -f /home/dc_redis/docker-compose.yml stop
+        docker-compose -f /home/dc_influxdb/docker-compose.yml stop
+        docker-compose -f /home/dc_neo4j/docker-compose.yml stop
+        docker-compose -f /home/dc_xxl-job/docker-compose.yml stop
+        docker-compose -f /home/dc_rabbitmq/docker-compose.yml stop
+        }
+
+elif [[ $2 = project ]];then
+        up () {
+        docker-compose -f /home/dc_achilles/docker-compose.yml up -d
+        docker-compose -f /home/dc_athena/docker-compose.yml up -d
+        docker-compose -f /home/dc_hermes/docker-compose.yml up -d
+        }
+
+        down () {
+        docker-compose -f /home/dc_achilles/docker-compose.yml down
+        docker-compose -f /home/dc_athena/docker-compose.yml down
+        docker-compose -f /home/dc_hermes/docker-compose.yml down
+        }
+
+        startf () {
+        docker-compose -f /home/dc_achilles/docker-compose.yml start
+        docker-compose -f /home/dc_athena/docker-compose.yml start
+        docker-compose -f /home/dc_hermes/docker-compose.yml start
+        }
+
+        stopf () {
+        docker-compose -f /home/dc_achilles/docker-compose.yml stop
+        docker-compose -f /home/dc_athena/docker-compose.yml stop
+        docker-compose -f /home/dc_hermes/docker-compose.yml stop
+	}
+else
+	up () {
+	docker-compose -f /home/dc_${n}/docker-compose.yml up -d
+	}
+	
+	down () {
+	docker-compose -f /home/dc_${n}/docker-compose.yml down
+	}
+	
+	startf () {
+	docker-compose -f /home/dc_${n}/docker-compose.yml start
+	}
+	
+	stopf () {
+	docker-compose -f /home/dc_${n}/docker-compose.yml stop
+	}
+fi
+
+case "$1" in
+  up)
+	up
+	;;
+  down)
+	down
+	;;
+  rebuild)
+	down
+	up
+	;;
+  start)
+	startf
+	;;
+  stop)
+	stopf
+	;;
+  restart)
+	stopf
+	startf
+	;;
+  *)
+	echo "error"
+	exit
+	;;
+esac
