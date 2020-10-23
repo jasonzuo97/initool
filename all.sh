@@ -7,7 +7,7 @@ ipf=$(ip addr | awk '/^[0-9]+: / {}; /inet.*global/ {print gensub(/(.*)\/(.*)/, 
 #mysql密码，默认账户为root
 mysqlpasswd=troila@123
 #mysql端口号
-mysqlport=3300
+mysqlport=3306
 
 #nginx端口号
 nginxport=80
@@ -572,6 +572,8 @@ services:
       - "${pathf}/nginx.conf:/etc/nginx/nginx.conf"
     ports:
       - "${nginxport}:80"
+    extra_hosts:	
+      - "test.com:113.96.208.92"
 EOF
 docker-compose -f ${pathd}/docker-compose.yml up -d
 docker ps -a | grep ${name}
@@ -949,17 +951,12 @@ services:
     ports:
       - "${rabbitmqportf}:15672"
       - "${rabbitmqportb}:5672"
-#    command:
-#      - /bin/sh
-#      - -c
-#      - |
-#        rabbitmqctl add_vhost prod
-#        rabbitmqctl add_user prod prod
-#        rabbitmqctl set_user_tags prod administrator
-#        rabbitmqctl set_permissions -p prod prod ".*" ".*" ".*"
 EOF
 docker-compose -f ${pathd}/docker-compose.yml up -d
-docker exec -it rabbitmqf /bin/bash -c 'rabbitmqctl add_vhost ${rabbitmqhost} && rabbitmqctl add_user ${rabbitmqadmin} ${rabbitmqpasswd} && rabbitmqctl set_user_tags ${rabbitmqadmin} administrator && rabbitmqctl set_permissions -p ${rabbitmqhost} ${rabbitmqadmin} ".*" ".*" ".*"'
+sleep 15
+docker exec -it rabbitmqf /bin/bash -c 'rabbitmqctl add_vhost '${rabbitmqhost}' && rabbitmqctl add_user '${rabbitmqadmin}' '${rabbitmqpasswd}' && rabbitmqctl set_user_tags '${rabbitmqadmin}' administrator && rabbitmqctl set_permissions -p '${rabbitmqhost}' '${rabbitmqpasswd}' ".*" ".*" ".*"'
+#docker rmi -f ${name}:management
+#docker commit -m "troila" -a "troila" rabbitmqf ${name}:managements
 docker ps -a | grep ${name}
 }
 
@@ -1027,7 +1024,134 @@ services:
 
 EOF
 docker-compose -f ${pathd}/docker-compose.yml up -d
+docker cp ${name}-${hermesb}-back-1.0.0:/usr/src/app ${pathf}
+docker cp ${name}-${hermesb}-front-1.0.0:/usr/share/nginx/html ${pathf}
+docker-compose -f ${pathd}/docker-compose.yml down
+cat > ${pathf}/app/application-prod.yml << EOF
+spring:
+    rabbitmq:
+        host: ${ipf}
+        port: ${rabbitmqportb}
+        virtual-host: ${rabbitmqphost}
+        username: ${rabbitmqadmin}
+        password: ${rabbitmqpasswd}
+    datasource:
+        type: com.alibaba.druid.pool.DruidDataSource
+        driverClassName: com.mysql.cj.jdbc.Driver
+        druid:
+            url: jdbc:mysql://${ipf}:${mysqlport}/achilles?useSSL=false&serverTimezone=GMT%2B8&tinyInt1isBit=false&allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8
+            username: root
+            password: ${mysqlpasswd}
+            initial-size: 10
+            max-active: 100
+            min-idle: 10
+            max-wait: 60000
+    redis:
+        host: ${ipf}
+        port: ${redisport}
+        lettuce:
+            pool:
+                max-active: 8
+                max-wait: -1s
+                max-idle: 8
+                min-idle: 1
+        timeout: 300ms
+        database: 10
+        password: ${redispasswd}
+    mail:
+        username: lancs@troila.com
+        password: ZHUOlang331
+        from: lancs@troila.com
+    flink:
+        client:
+            port: 22
+            username: root
+            password: troila@123
+    sqoop:
+        client:
+            port: 22
+            username: root
+            password: troila@123
+    canal:
+        auto:
+            deploy:
+                host: 172.24.103.7
+                port: 22
+                user: hdfs
+                password: hdfs@123
+                canalPath: /opt/achilles-canal-auto-1.0
+    flume:
+        port: 22
+        user: root
+        password: troila@123
+        agent:
+          channel:
+            file:
+              dataDirs: /data01/achilles/flume/data
+              checkpointDir: /data01/achilles/flume/checkpoint
+    data:
+        neo4j:
+          uri: http://${ipf}:${neo4jportf}
+          url: bolt://${ipf}:${neo4jportb}
+          username: neo4j
+          password: ${neo4jpasswd}
+    Elasticsearch:
+        #address: 172.23.1.3:9200,172.23.1.4:9200,172.23.1.5:9200
+    main:
+        allow-bean-definition-overriding: true    
+logging:
+    level:
+        com.troila.unicorn: error
+swagger:
+    enabled: false
+xxl:
+    job:
+        adminAddresses: http://${ipf}:${xxlport}/
+        ip: ${ipf}
+        port: 9999
+        logPath: /data/applogs/xxl-job/jobhandler
+hive:
+    trigger:
+        database:
+            jdbcUrl: jdbc:mysql://${ipf}:${mysqlport}/hive
+            username: root
+            password: ${mysqlpasswd}
+fdfs:
+    so-timeout: 1500
+    connect-timeout: 600
+    thumb-image:
+        width: 150
+        height: 150
+    tracker-list:
+    - ${ipf}:22122
+    pool:
+        max-total: -1
+        max-wait-millis: 5000
+        max-total-per-key: 50
+        max-idle-per-key: 10
+        max_idle_per_key: 5
+#achilles:
+#    taskExecutor:
+#        corePoolSize: 10
+#        maxPoolSize: 100
+#        queueCapacity: 25
+#    file:
+#        path: http://61.181.105.123:7189/
+#    rsa:
+#        public-key: MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDLh+Ls6QorHaxUaA1InRZ+Rt+s+y3rnCobQYiwuVXPsCnEbWBYT9GCY36Bz2wF6q113nooOitRmeSeyoaiiDWoRFi+pfPfFrMVVJo9lo/EIJvwUxJZYoxm7letruXovWF42QM4hmT8GEG4OkyKxfdTglJmPXxYCfu1/56xVnXHGwIDAQAB
+#        private-key: MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBAMuH4uzpCisdrFRoDUidFn5G36z7LeucKhtBiLC5Vc+wKcRtYFhP0YJjfoHPbAXqrXXeeig6K1GZ5J7KhqKINahEWL6l898WsxVUmj2Wj8Qgm/BTEllijGbuV62u5ei9YXjZAziGZPwYQbg6TIrF91OCUmY9fFgJ+7X/nrFWdccbAgMBAAECgYEAvNEIrd6YJ1205O1O/YF2P5oCohi4Bi9vRK/sXn7h4/Y7GVabHfKWnA8vasACKA8J8yJ9U1p7m41YchPTCW+xzgoPVDASINN4I2q8vgc9tOL3vHRvYbEF8IQCsAWjpIwRqgnn7dr/PBAkaPt8+ZxEvUbq8OXQ7jr90WVvZOhORKkCQQD9p46RZlCS4MR2+HBTd5QHfUIetHNhIepcqYXsPbZC1ZaiopF8bqiWEFZBM77l74r8ly7TsscT3GHvI8yz9Sh1AkEAzWmtoDz2TbhBycL2E1FmopfZ6f3UN+CaqqcI+a/L6OjRx7+ddLaLOc1mzqZoHvGTBiUn48kv5isQ3c1dVkO/TwJBAPHpZn/nK3sZIGYyhLYl+ii2XmP4R33goapkBxSKupO9Ll/HWadpxiDwTcL7fdm/fjduXDuMam7XpRM0els6ua0CQByQ575y++XPDAcc/8+r8FQIPhvWWt7yc0/sLslac0cOqa3XrfP/NtlxAS0X4z76ZXHjVOrOncSqlIvj9Wj7vu0CQDkRviFhdSuBMV/w+aiZPkg6FxDZiuxN327c9xQLhCNRlROEap/RYzc8fkQrOgUBTc88v5MEMGFDLzDYXAjHzAQ=
+#    token:
+#        secret-key: ec2499f376c109224dffa93ca82b295b
+#        expiration-time: 172800
+#        authorization: token
+#    default-password: 123456
+#report:
+#    subscription-url: http://61.181.105.123:7189/report/qualityReport/
+EOF
+sed 's/#//' ${pathd}/docker-compose.yml
+docker-compose -f ${pathd}/docker-compose.yml up -d
 docker ps -a | grep ${name}
+echo -e "\033[31m application-prod.yml配置文件ip默认为本机ip，请进入产品目录根据实际请款改修改,并删除#\033[0m"
 }
 
 athenaf () {
@@ -1071,7 +1195,7 @@ version: '3.7'
 services:
   ${name}-${athenab}-back:
     image: ${athenaib}:${athenatb}
-    container_name: ${name}-${athenai}-back-1.0.0
+    container_name: ${name}-${athenab}-back-1.0.0
     restart: always
     volumes:
       - "${pathf}/logs:/usr/src/app/logs"
@@ -1093,7 +1217,55 @@ services:
 
 EOF
 docker-compose -f ${pathd}/docker-compose.yml up -d
+docker cp ${name}-${hermesb}-back-1.0.0:/usr/src/app ${pathf}
+docker cp ${name}-${hermesb}-front-1.0.0:/usr/share/nginx/html ${pathf}
+docker-compose -f ${pathd}/docker-compose.yml down
+cat > ${pathf}/app/application-prod.yml << EOF
+spring:
+    rabbitmq:
+        host: ${ipf}
+        port: ${rabbitmqport}
+        virtual-host: prod
+        username: prod
+        password: prod
+    datasource:
+        druid:
+            url: jdbc:mysql://${ipf}:${mysqlport}/athena?useSSL=false&serverTimezone=GMT%2B8&tinyInt1isBit=false&allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8
+            username: root
+            password: ${mysqlpasswd}
+    redis:
+        host: ${ipf}
+        port: ${redisport}
+        database: 2
+        password: ${redispasswd}
+    mail:
+        username: athena@troila.com
+        password: ZHUOlang123
+        from: athena@troila.com
+
+logging:
+    level:
+        com.troila: info
+swagger:
+    enabled: true
+fdfs:
+    tracker-list:
+    - ${atfdfs}:22122
+#athena:
+#    file:
+#        path: http://61.181.105.123:7089/
+#    text-datasource:
+#        db-ip: 172.23.1.2
+#        username: root
+#        password: troila@123
+#    rabbitmqconfig:
+#        queue_athena: usercenter.user.queue.athena.prod
+
+EOF
+sed 's/#//' ${pathd}/docker-compose.yml
+docker-compose -f ${pathd}/docker-compose.yml up -d
 docker ps -a | grep ${name}
+echo -e "\033[31m application-prod.yml配置文件ip默认为本机ip，请进入产品目录根据实际请款改修改,并删除#\033[0m"
 }
 
 hermesf () {
@@ -1137,7 +1309,7 @@ version: '3.7'
 services:
   ${name}-${hermesb}-back:
     image: ${hermesib}:${hermestb}
-    container_name: ${name}-${hermesi}-back-1.0.0
+    container_name: ${name}-${hermesb}-back-1.0.0
     restart: always
     volumes:
       - "${pathf}/logs:/usr/src/app/logs"
@@ -1160,7 +1332,40 @@ services:
 
 EOF
 docker-compose -f ${pathd}/docker-compose.yml up -d
+sleep 5
+docker cp ${name}-${hermesb}-back-1.0.0:/usr/src/app ${pathf}
+docker cp ${name}-${hermesb}-front-1.0.0:/usr/share/nginx/html ${pathf}
+docker-compose -f ${pathd}/docker-compose.yml down
+cat > ${pathf}/app/application-prod.yml << EOF
+spring:
+    influx:
+        url: ${ipf}:${influxdbport}
+    datasource:
+        druid:
+            url: jdbc:mysql://${ipf}:${mysqlport}/hermes?useSSL=false&serverTimezone=GMT%2B8&tinyInt1isBit=false&allowMultiQueries=true&useUnicode=true&characterEncoding=UTF-8
+            username: root
+            password: ${mysqlpasswd}
+    redis:
+        host: ${ipf}
+        port: ${redisport}
+        database: 10
+        password: ${redispasswd}
+#server:
+#    servlet:
+#        context-path: /api/
+hermes:
+    #server 部署ip
+    serverIp: ${ipf}
+    #ntp 服务ip
+    ntpServerIp: ${ipf}
+    #yum及tar包资源ip
+    sourceIp: ${ipf}
+
+EOF
+sed 's/#//' ${pathd}/docker-compose.yml
+docker-compose -f ${pathd}/docker-compose.yml up -d
 docker ps -a | grep ${name}
+echo -e "\033[31m application-prod.yml配置文件ip默认为本机ip，请进入产品目录根据实际请款改修改,并删除#\033[0m"
 }
 
 pick () {
